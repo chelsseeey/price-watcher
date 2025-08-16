@@ -1437,3 +1437,47 @@
   font-weight: 600;
   margin-right: 0.5rem;
 } 
+
+/* 스케줄러 버튼 스타일 - 이미지와 동일 */
+.scheduler-btn {
+  padding: 1rem 2rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border: 2px solid #4fd1c7;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 200px;
+  height: 50px;
+  background: white;
+  color: #4fd1c7;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  letter-spacing: 0.3px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.scheduler-btn:hover:not(:disabled) {
+  background: #f0fdfa;
+  border-color: #5eead4;
+  color: #5eead4;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(79, 209, 199, 0.15);
+}
+
+.scheduler-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(79, 209, 199, 0.1);
+}
+
+.scheduler-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  border-color: #94a3b8;
+  color: #94a3b8;
+  background: #f8fafc;
+} 
