@@ -479,10 +479,9 @@ function App() {
               <h3>실험 스케줄러</h3>
               <button 
                 className="scheduler-btn"
-                onClick={() => setCurrentPage('scheduler')}
                 disabled={(!selectedPlatform && platformUrls.length === 0) || selectedSKUs.length === 0 || savedProfiles.length === 0}
               >
-                스케줄러 실행
+                스케줄러 실행 &gt;
               </button>
             </div>
           </div>
