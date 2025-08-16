@@ -1,0 +1,15 @@
+# web, worker, redis
+
+version: "3.9"
+services:
+  client:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.web
+    container_name: pricewatch-web
+    ports:
+      - "8080:80"
+    environment:
+      - NGINX_PORT=80
+    depends_on: []
+  # server는 추후 추가 (Flask API/Socket)

@@ -1,0 +1,39 @@
+# 공통 스키마/타입
+openapi: 3.0.3
+info:
+  title: PriceWatch API
+  version: "0.1.0"
+paths:
+  /api/v1/meta/platforms:
+    get:
+      summary: 플랫폼 목록
+      responses:
+        "200":
+          description: OK
+          content: { application/json: { schema: { type: array, items: { type: object, properties: { id: {type: string}, name: {type: string} } } } } }
+  /api/v1/meta/skus:
+    get:
+      summary: SKU 목록(플랫폼별)
+      parameters:
+        - in: query
+          name: platform
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content: { application/json: { schema: { type: array, items: { type: object, properties: { id: {type: string}, name: {type: string} } } } } }
+  /api/v1/runs:
+    get:
+      summary: 실행 목록
+      responses:
+        "200":
+          description: OK
+          content: { application/json: { schema: { type: array, items: { type: object } } } }
+    post:
+      summary: 실행 생성
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object } } }
+      responses:
+        "200": { description: Created }
