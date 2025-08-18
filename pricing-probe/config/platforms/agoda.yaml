@@ -1,0 +1,8 @@
+base_url: "https://www.agoda.com"
+dom:
+  price_selectors:
+    - "span[data-component='Price'] span"
+    - "span.final-price"
+    - "span[data-selenium='finalPrice']"
+screenshot:
+  roi_keywords: ["KRW", "₩", "총 요금", "final price"]
