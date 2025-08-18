@@ -1,4 +1,4 @@
-# agoda_topcard_price.py
+# agoda_price_crawler.py (modified)
 import os, re, json, argparse, asyncio
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -10,11 +10,10 @@ from playwright.async_api import async_playwright
 
 load_dotenv()
 
-# -------------------------
-# 환경설정
-# -------------------------
+DEBUG_SAVE = os.getenv("DEBUG_SAVE", "0") == "1"
+SELF_SCHEDULED = os.getenv("SELF_SCHEDULED", "0") == "1"
+
 PROXY = {"KR": os.getenv("PROXY_KR") or None, "US": os.getenv("PROXY_US") or None}
-# (옵션) 계정형 프록시 지원
 PROXY_USER = {"KR": os.getenv("PROXY_KR_USER"), "US": os.getenv("PROXY_US_USER")}
 PROXY_PASS = {"KR": os.getenv("PROXY_KR_PASS"), "US": os.getenv("PROXY_US_PASS")}
 
@@ -32,7 +31,6 @@ UA = {
 }
 VIEWPORT = {"pc": {"width": 1366, "height": 768}, "mobile": {"width": 390, "height": 844}}
 
-# 가성비 좋은 후보들(아고다 A/B 대응용으로 넓게)
 PRICE_SELECTORS = [
     "[data-selenium*='price']",
     "[data-selenium*='finalPrice']",
@@ -44,19 +42,15 @@ PRICE_SELECTORS = [
     "[data-testid*='price']",
 ]
 
-# -------------------------
-# 유틸리티
-# -------------------------
-def seconds_until_next_10m():
+def seconds_until_next_30m():
     now = datetime.now()
     base = now.replace(second=0, microsecond=0)
-    next_min = ((now.minute // 10) + 1) * 10
-    if next_min >= 60:
-        run_time = (base + timedelta(hours=1)).replace(minute=0)
+    if now.minute < 30:
+        run_time = base.replace(minute=30)
     else:
-        run_time = base.replace(minute=next_min)
+        run_time = (base + timedelta(hours=1)).replace(minute=0)
     return max(1, int((run_time - now).total_seconds()))
-
+    
 def parse_money(text: str):
     t = (text or "").replace("\u00a0", " ").strip()
     m = re.search(r"([\d.,]+)\s*원", t)
@@ -97,6 +91,8 @@ async def goto_with_retry(page, url, referer=None, retries=3):
     raise last
 
 async def safe_screenshot(page, path, full=True):
+    if not DEBUG_SAVE:
+        return False
     try:
         if hasattr(page, "is_closed") and page.is_closed(): return False
         await page.screenshot(path=path, full_page=full); return True
@@ -104,6 +100,8 @@ async def safe_screenshot(page, path, full=True):
         print(f"[WARN] screenshot failed: {e}"); return False
 
 async def save_artifacts(page, prefix):
+    if not DEBUG_SAVE:
+        return
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     await safe_screenshot(page, f"{prefix}_{ts}.png", full=True)
     try:
@@ -353,16 +351,16 @@ async def scheduler(serial: bool = False):
 
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument("--login-setup", action="store_true", help="브라우저에서 아고다 로그인 후 storage_state 저장")
-    p.add_argument("--once", action="store_true", help="1회만 실행 후 종료")
-    p.add_argument("--serial", action="store_true", help="4조합 직렬 실행(디버그용)")
+    p.add_argument("--login-setup", action="store_true")
+    p.add_argument("--once", action="store_true")
+    p.add_argument("--serial", action="store_true")
     return p.parse_args()
 
 if __name__ == "__main__":
     args = parse_args()
     try:
         if args.login_setup: asyncio.run(login_setup_once())
-        elif args.once: asyncio.run(run_once(serial=args.serial))
-        else: asyncio.run(scheduler())
+        elif args.once or not SELF_SCHEDULED: asyncio.run(run_once(serial=args.serial))
+        else: asyncio.run(scheduler(serial=args.serial))
     except KeyboardInterrupt:
         print("\n[종료] 사용자에 의해 중단되었습니다.")
