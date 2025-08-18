@@ -1,0 +1,8 @@
+base_url: "https://www.amazon.com"
+dom:
+  price_selectors:
+    - "#corePrice_feature_div .a-price .a-offscreen"
+    - "#priceblock_ourprice"
+    - "#priceblock_dealprice"
+screenshot:
+  roi_keywords: ["$", "USD", "가격"]

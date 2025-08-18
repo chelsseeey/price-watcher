@@ -1,0 +1,7 @@
+skus:
+  - id: "AG_KOREANA_001"
+    type: "hotel"
+    url: "https://www.agoda.com/ko-kr/koreana-hotel/hotel/seoul-kr.html?countryId=212&finalPriceView=1&isShowMobileAppPrice=false&cid=1922887&numberOfBedrooms=&familyMode=false&adults=2&children=0&rooms=1&maxRooms=0&checkIn=2025-11-12&isCalendarCallout=false&childAges=&numberOfGuest=0&missingChildAges=false&travellerType=1&showReviewSubmissionEntry=false&currencyCode=KRW&isFreeOccSearch=false&tag=edd99c7b-e980-40d6-819a-b024ee42f43d&los=2&searchrequestid=9fb70dca-934f-463c-a551-a0c33991cf15&ds=hkJGqr6p9rLvu4GX"
+    meta:
+      hotel_name: "Koreana Hotel"
+      city: "Seoul"

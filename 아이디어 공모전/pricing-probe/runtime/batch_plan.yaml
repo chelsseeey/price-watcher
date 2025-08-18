@@ -1,0 +1,12 @@
+run_id: "auto"
+timestamp: null
+platform_jobs:
+  agoda:
+    profiles: ["L0-KR-D","L0-US-D"]
+    skus_from: "config/skus/agoda.yaml"
+  amazon:
+    profiles: ["L0-KR-D","L0-US-D"]
+    skus_from: "config/skus/amazon.yaml"
+  kayak:
+    profiles: ["L0-KR-D","L0-US-D"]
+    skus_from: "config/skus/kayak.yaml"

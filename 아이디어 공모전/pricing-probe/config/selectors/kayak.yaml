@@ -1,0 +1,25 @@
+dom:
+  offer_card:
+    - css: "[data-test-id='offer-card']"
+    - css: "div[data-test-id='OfferCard']"
+    - css: "div.resultWrapper"
+  fields:
+    itinerary:
+      - css: "[data-test-id='itinerary']"
+      - css: "[data-test-id='airlines']"
+      - css: ".airlines"
+    price_total:
+      - css: "[data-test-id='price-text']"
+      - css: ".price-text"
+      - css: "[data-test-id='price']"
+    stops:
+      - css: "[data-test-id='stops']"
+      - css: ".stops-text"
+    duration:
+      - css: "[data-test-id='duration']"
+      - css: ".duration"
+  currency_hint:
+    - css: "body"
+  min_price_header:
+    - css: "#flight-results-list-wrapper [aria-label='최저가 순'] .Hv20-value span"
+    - css: "#flight-results-list-wrapper .Hv20 .Hv20-content[data-content='price_a'] .Hv20-value span"

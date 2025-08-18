@@ -1,0 +1,9 @@
+skus:
+  - id: "KY_ICN_BWN_20251112_2ADT"
+    type: "flight"
+    url: "https://www.kayak.co.kr/flights/ICN-BWN/2025-11-12?adults=2&sort=bestflight_a"
+    meta:
+      from: "ICN"
+      to: "BWN"
+      date: "2025-11-12"
+      pax_adults: 2
