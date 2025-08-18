@@ -1,8 +1,0 @@
-base_url: "https://www.kayak.co.kr"
-dom:
-  offer_selectors:
-    - "[data-test-id='offer-card']"
-    - "div[data-test-id='OfferCard']"
-    - "div.resultWrapper"
-screenshot:
-  roi_keywords: ["₩", "KRW", "원", "가격", "Best"]
