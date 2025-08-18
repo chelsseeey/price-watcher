@@ -3,7 +3,6 @@
 Amazon 상품 상세가 수집기 (로그인 유지 지원)
 - 최초 1회: --login-setup → 브라우저에서 아마존 로그인(2FA 포함) → storage_state 저장
 - 이후: KR/US × PC/Mobile 4조합으로 가격 수집
-- 스케줄: 기본 0·3·6·9…시 정각 반복, --once 로 1회만 실행 가능
 - 결과: ./outputs/amazon_detail_prices.csv
 """
 

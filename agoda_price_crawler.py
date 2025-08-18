@@ -1,4 +1,4 @@
-# agoda_topcard_price.py
+# agoda_price_crawler.py
 import os, re, json, argparse, asyncio
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -47,15 +47,15 @@ PRICE_SELECTORS = [
 # -------------------------
 # 유틸리티
 # -------------------------
-def seconds_until_next_30m():
+def seconds_until_next_10m():
     from datetime import datetime, timedelta
     now = datetime.now()
     base = now.replace(second=0, microsecond=0)
-    # 다음 :00 또는 :30 정각으로 정렬
-    if now.minute < 30:
-        run_time = base.replace(minute=30)
-    else:
+    next_min = ((now.minute // 10) + 1) * 10
+    if next_min >= 60:
         run_time = (base + timedelta(hours=1)).replace(minute=0)
+    else:
+        run_time = base.replace(minute=next_min)
     return max(1, int((run_time - now).total_seconds()))
 
 def parse_money(text: str):
@@ -347,8 +347,8 @@ async def run_once(serial: bool = False):
 async def scheduler(serial: bool = False):
     await run_once(serial=serial)
     while True:
-        wait_s = seconds_until_next_30m()
-        print(f"[Scheduler] 다음 실행까지 {wait_s}초 대기 (매 30분: :00 / :30).")
+        wait_s = seconds_until_next_10m()
+        print(f"[Scheduler] 다음 실행까지 {wait_s}초 대기 (매 10분: :00/:10/:20/:30/:40/:50).")
         await asyncio.sleep(wait_s)
         await run_once(serial=serial)
 
