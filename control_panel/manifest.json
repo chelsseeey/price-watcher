@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "TraceMonster Panel",
+  "version": "1.0",
+  "description": "Show environment control panel on specific sites.",
+  "permissions": [],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.coupang.com/*",
+        "*://*.agoda.com/*",
+        "*://*.kayak.com/*"
+      ],
+      "js": ["content.js"],
+      "css": ["style.css"]
+    }
+  ]
+}
