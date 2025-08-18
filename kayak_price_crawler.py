@@ -43,6 +43,7 @@ UA = {
 }
 VIEWPORT = {"pc": {"width": 1366, "height": 768}, "mobile": {"width": 390, "height": 844}}
 
+
 # ---------- 유틸 ----------
 def seconds_until_next_10m():
     now = datetime.now()
@@ -142,7 +143,14 @@ async def extract_card_price_text(card_el) -> tuple[int|None, str|None, str]:
 
 # ---------- 브라우저 ----------
 async def new_context(pw, region: str, device: str):
-    browser = await pw.chromium.launch(headless=False, args=["--disable-blink-features=AutomationControlled"])
+    browser = await pw.chromium.launch(
+    headless=False,
+    args=[
+        "--disable-blink-features=AutomationControlled",
+        "--disable-infobars",
+        "--disable-dev-shm-usage",
+    ]
+)
     proxy_cfg = {"server": PROXY[region]} if PROXY[region] else None
     if proxy_cfg and PROXY_USER[region] and PROXY_PASS[region]:
         proxy_cfg["username"] = PROXY_USER[region]
@@ -160,7 +168,16 @@ async def new_context(pw, region: str, device: str):
 # ---------- 로그인(선택) ----------
 async def login_setup_once():
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(headless=False, args=["--disable-blink-features=AutomationControlled"])
+        # 이 부분도 동일하게 바꿔주세요.
+        browser = await pw.chromium.launch(
+        headless=False,
+        args=[
+            "--disable-blink-features=AutomationControlled",
+            "--disable-infobars",
+            "--disable-dev-shm-usage",
+        ]
+    )
+
         ctx = await browser.new_context(user_agent=UA["pc"], viewport=VIEWPORT["pc"], locale="ko-KR", timezone_id="Asia/Seoul",
                                         proxy={"server": PROXY["KR"]} if PROXY["KR"] else None)
         ctx.set_default_navigation_timeout(180_000); ctx.set_default_timeout(180_000)
