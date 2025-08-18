@@ -1,0 +1,7 @@
+skus:
+  - id: "AMZ_B09BWFX1L6_001"
+    type: "product"
+    url: "https://www.amazon.com/-/ko/dp/B09BWFX1L6/ref=sr_1_6?keywords=Amazon%2BEssentials&qid=1755480323&sr=8-6&th=1"
+    meta:
+      asin: "B09BWFX1L6"
+      title_hint: "Amazon Essentials"
