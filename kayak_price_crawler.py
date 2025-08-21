@@ -44,14 +44,15 @@ UA = {
 VIEWPORT = {"pc": {"width": 1366, "height": 768}, "mobile": {"width": 390, "height": 844}}
 
 # ---------- 유틸 ----------
-def seconds_until_next_10m():
+def seconds_until_next_30m():
+    from datetime import datetime, timedelta
     now = datetime.now()
     base = now.replace(second=0, microsecond=0)
-    next_min = ((now.minute // 10) + 1) * 10
-    if next_min >= 60:
-        run_time = (base + timedelta(hours=1)).replace(minute=0)
+    # 다음 :00 또는 :30 정각으로 정렬
+    if now.minute < 30:
+        run_time = base.replace(minute=30)
     else:
-        run_time = base.replace(minute=next_min)
+        run_time = (base + timedelta(hours=1)).replace(minute=0)
     return max(1, int((run_time - now).total_seconds()))
 
 def build_kayak_url():
@@ -232,16 +233,18 @@ async def scrape_once(ctx, region, device):
     return row
 
 # ---------- 실행 ----------
-async def run_once():
+async def run_once(serial: bool = False):
     combos = [
         {"region":"KR","device":"pc"},
         {"region":"KR","device":"mobile"},
         {"region":"US","device":"pc"},
         {"region":"US","device":"mobile"},
     ]
-    results=[]
+    results = []
+
     async with async_playwright() as pw:
         sem = asyncio.Semaphore(2)
+
         async def worker(c):
             async with sem:
                 try:
@@ -255,11 +258,19 @@ async def run_once():
                 except Exception as e:
                     print(f"[FAIL]{c}: {e}")
                     return e
-        rs = await asyncio.gather(*[worker(c) for c in combos], return_exceptions=True)
-        for r in rs:
-            if isinstance(r, Exception):
-                print(f"[WARN] worker error: {r}")
 
+        if serial:
+            # 조합을 하나씩 순차 실행(디버그/안정 모드)
+            for c in combos:
+                await worker(c)
+        else:
+            # 기본: 병렬 실행
+            rs = await asyncio.gather(*[worker(c) for c in combos], return_exceptions=True)
+            for r in rs:
+                if isinstance(r, Exception):
+                    print(f"[WARN] worker error: {r}")
+
+    # CSV 저장 (기존 로직 유지)
     if results:
         df = pd.DataFrame(results)
         if CSV_PATH.exists():
@@ -273,9 +284,9 @@ async def run_once():
 async def scheduler():
     await run_once()
     while True:
-        w = seconds_until_next_10m()
-        print(f"[Scheduler] 다음 실행까지 {w}초 대기 (매 10분: :00/:10/:20/:30/:40/:50).")
-        await asyncio.sleep(w)
+        wait_s = seconds_until_next_30m()
+        print(f"[Scheduler] 다음 실행까지 {wait_s}초 대기 (매 30분: :00 / :30).")
+        await asyncio.sleep(wait_s)
         await run_once()
 
 def parse_args():

@@ -14,7 +14,6 @@ load_dotenv()
 # 환경설정
 # -------------------------
 PROXY = {"KR": os.getenv("PROXY_KR") or None, "US": os.getenv("PROXY_US") or None}
-# (옵션) 계정형 프록시 지원
 PROXY_USER = {"KR": os.getenv("PROXY_KR_USER"), "US": os.getenv("PROXY_US_USER")}
 PROXY_PASS = {"KR": os.getenv("PROXY_KR_PASS"), "US": os.getenv("PROXY_US_PASS")}
 
@@ -32,7 +31,7 @@ UA = {
 }
 VIEWPORT = {"pc": {"width": 1366, "height": 768}, "mobile": {"width": 390, "height": 844}}
 
-# 가성비 좋은 후보들(아고다 A/B 대응용으로 넓게)
+# 후보 셀렉터(백업용)
 PRICE_SELECTORS = [
     "[data-selenium*='price']",
     "[data-selenium*='finalPrice']",
@@ -47,29 +46,57 @@ PRICE_SELECTORS = [
 # -------------------------
 # 유틸리티
 # -------------------------
-def seconds_until_next_10m():
+"""
+def seconds_until_next_1h():
+    now = datetime.now()
+    base = now.replace(minute=0, second=0, microsecond=0)
+    run_time = base + timedelta(hours=1)
+    return max(1, int((run_time - now).total_seconds())) """
+def seconds_until_next_30m():
     from datetime import datetime, timedelta
     now = datetime.now()
     base = now.replace(second=0, microsecond=0)
-    next_min = ((now.minute // 10) + 1) * 10
-    if next_min >= 60:
-        run_time = (base + timedelta(hours=1)).replace(minute=0)
+    # 다음 :00 또는 :30 정각으로 정렬
+    if now.minute < 30:
+        run_time = base.replace(minute=30)
     else:
-        run_time = base.replace(minute=next_min)
+        run_time = (base + timedelta(hours=1)).replace(minute=0)
     return max(1, int((run_time - now).total_seconds()))
 
+
 def parse_money(text: str):
-    t = (text or "").replace("\u00a0", " ").strip()
+    if text is None:
+        return None, None
+    t = str(text)
+    # 공백류 정규화
+    t = t.replace("\u00a0", " ").replace("\u202f", " ").strip()
+
+    # 1) "#### 원" 패턴
     m = re.search(r"([\d.,]+)\s*원", t)
-    if m: return int(re.sub(r"[^\d]","",m.group(1))), "KRW"
+    if m:
+        digits = re.sub(r"[^\d]", "", m.group(1))
+        if digits:
+            return int(digits), "KRW"
+
+    # 2) 통화기호 + 숫자
     m = re.search(r"([₩$€£])\s*([\d.,]+)", t)
     if m:
-        cur = {"₩":"KRW","$":"USD","€":"EUR","£":"GBP"}.get(m.group(1),"CUR")
-        return int(re.sub(r"[^\d]","",m.group(2))), cur
-    # 통화기호 없지만 금액만 있는 경우(백업)
-    m = re.search(r"([\d.,]+)", t)
-    if m: return int(re.sub(r"[^\d]","",m.group(1))), None
+        digits = re.sub(r"[^\d]", "", m.group(2))
+        if digits:
+            cur = {"₩": "KRW", "$": "USD", "€": "EUR", "£": "GBP"}.get(m.group(1), None)
+            return int(digits), cur or None
+
+    # 3) 백업: 문장 내 모든 숫자 덩어리에서 가장 긴(자릿수 큰) 것 선택
+    nums = re.findall(r"[\d][\d.,]*", t)
+    nums = [re.sub(r"[^\d]", "", x) for x in nums]
+    nums = [x for x in nums if x]  # 빈 문자열 제거
+    if nums:
+        # 길이(자릿수) 큰 것을 우선, 동률이면 값이 작은 걸 선택
+        nums.sort(key=lambda s: (-len(s), int(s)))
+        return int(nums[0]), None
+
     return None, None
+
 
 def parse_meta_from_url(url: str):
     try:
@@ -88,13 +115,14 @@ async def goto_with_retry(page, url, referer=None, retries=3):
     for _ in range(retries+1):
         try:
             await page.goto(url, wait_until="domcontentloaded", referer=referer)
-            # 초기 로딩 후 네트워크 거의 정지까지 한번 더
             try:
                 await page.wait_for_load_state("networkidle", timeout=15_000)
-            except: pass
+            except:
+                pass
             return
         except Exception as e:
-            last=e; await page.wait_for_timeout(3000)
+            last=e
+            await page.wait_for_timeout(3000)
     raise last
 
 async def safe_screenshot(page, path, full=True):
@@ -124,23 +152,18 @@ async def get_attr_or_none(page, selector: str, name: str, timeout: int = 1500):
     except Exception: return None
 
 def _walk_price(obj):
-    """딕트/리스트에서 price/amount/total 등 키를 찾아 숫자 추출"""
     try:
         if isinstance(obj, dict):
-            # 우선순위 높은 키들
             for k in ["price", "priceAmount", "amount", "totalPrice", "finalPrice", "grandTotal", "value", "amountTotal"]:
                 if k in obj and isinstance(obj[k], (int, float, str)):
                     val, cur = parse_money(str(obj[k]))
-                    if val:  # 통화는 아래서 별도 보강
-                        # 통화 힌트
+                    if val:
                         cur2 = obj.get("priceCurrency") or obj.get("currency") or obj.get("currencyCode")
                         if cur is None and cur2: cur = cur2
                         return val, cur
-            # offers 구조
             if "offers" in obj:
                 val = _walk_price(obj["offers"])
                 if val: return val
-            # 재귀
             for v in obj.values():
                 val = _walk_price(v)
                 if val: return val
@@ -153,7 +176,6 @@ def _walk_price(obj):
     return None
 
 async def extract_price_json(page):
-    """JSON-LD → Next.js(__NEXT_DATA__) 순으로 가격 추출"""
     # 1) JSON-LD
     try:
         n = await page.locator("script[type='application/ld+json']").count()
@@ -182,13 +204,79 @@ async def extract_price_json(page):
             pass
     return None, None, None
 
-async def scroll_soft(page, steps=6, dy=800, pause=350):
+async def scroll_soft(page, steps=6, dy=1000, pause=400):
     for _ in range(steps):
         try:
             await page.mouse.wheel(0, dy)
         except Exception:
             pass
         await page.wait_for_timeout(pause)
+
+# === 모바일 전용: 가시성/취소선/쿠폰 배제 + '1박당' 근접 스코어 ===
+async def _pick_price_v2(page):
+    bad_kw = ["할인", "적용됨", "쿠폰", "리워드", "캐시백", "%", "즉시 할인"]
+    candidates = await page.evaluate("""
+    (badKw) => {
+      const getText = (el) => (el.innerText || el.textContent || "").trim();
+      const isVisible = (el) => {
+        const st = getComputedStyle(el);
+        if (st.display === "none" || st.visibility === "hidden" || parseFloat(st.opacity || "1") < 0.2) return false;
+        const r = el.getBoundingClientRect();
+        return (r.width > 0 && r.height > 0);
+      };
+      const hasLineThrough = (el) => {
+        const st = getComputedStyle(el);
+        if ((st.textDecorationLine || "").includes("line-through")) return true;
+        for (let p = el; p; p = p.parentElement) {
+          const c = (p.className || "").toString().toLowerCase();
+          if (c.includes("strike") || c.includes("original") || c.includes("wasprice")) return true;
+          const st2 = getComputedStyle(p);
+          if ((st2.textDecorationLine || "").includes("line-through")) return true;
+        }
+        return false;
+      };
+      const includesBad = (t) => badKw.some(k => t.includes(k));
+
+      const all = Array.from(document.querySelectorAll("*")).filter(isVisible);
+      const moneyRegex = /([₩$€£]\\s*)?[\\d.,]+\\s*원?/;
+      const hasNightLabel = (el) => {
+        const txt = (getText(el) || "");
+        if (txt.includes("1박당") || txt.includes("1박 당") || txt.toLowerCase().includes("per night")) return true;
+        for (let p = el.parentElement; p; p = p.parentElement) {
+          const t = getText(p);
+          if (t.includes("1박당") || t.includes("1박 당") || t.toLowerCase().includes("per night")) return true;
+        }
+        return false;
+      };
+
+      const items = [];
+      for (const el of all) {
+        const t = getText(el).replace(/\\u00a0|\\u202f/g, " ").trim();
+        if (!moneyRegex.test(t)) continue;
+        if (includesBad(t)) continue;
+        if (hasLineThrough(el)) continue;
+        if (el.getAttribute("aria-hidden") === "true" || el.getAttribute("aria-hidden") === "1") continue;
+
+        const st = getComputedStyle(el);
+        let score = parseFloat(st.fontSize || "14");
+        if (hasNightLabel(el)) score += 50;
+        items.push({ text: t, score });
+      }
+      return items;
+    }
+    """, bad_kw)
+
+    scored = []
+    for it in candidates:
+        val, cur = parse_money(it["text"])
+        if not val:
+            continue
+        scored.append((it["score"], val, cur, it["text"]))
+
+    if not scored:
+        return None
+    scored.sort(key=lambda x: (-x[0], x[1]))  # 점수↓, 동점이면 금액↑중 최소
+    return scored[0][3]
 
 # -------------------------
 # 브라우저/컨텍스트
@@ -248,33 +336,50 @@ async def scrape_once(ctx, region, device, url: str):
             raise RuntimeError("Agoda가 봇/해외 접속으로 차단했습니다. 프록시/수동 통과 필요.")
     except Exception: pass
 
-    # 스켈레톤 로딩 해소 & 레이지로드 가볍게 유도
+    # 로딩/레이지로드
     await scroll_soft(page, steps=6, dy=1000, pause=400)
 
-    # 1) DOM에서 가격 대기 + 추출
-    price_text = None
+    # 1) DOM 대기
     for _ in range(45):
         seen = False
         for sel in PRICE_SELECTORS:
             try:
                 if await page.locator(sel).count() > 0:
                     seen = True; break
-            except: pass
+            except:
+                pass
         if seen: break
         await page.wait_for_timeout(1000)
 
+    # 2) 모바일 우선 추출(가시/근접/취소선·쿠폰 제외)
+    price_text = None
+    if device == "mobile":
+        price_text = await _pick_price_v2(page)
+
+    # 3) 백업(PC/모바일 공통, 취소선/쿠폰 제외)
     if not price_text:
         for sel in PRICE_SELECTORS:
             try:
                 els = page.locator(sel); n = await els.count()
-                for i in range(min(n, 20)):
-                    t = (await els.nth(i).inner_text()).strip()
-                    if re.search(r"\d", t) and ("원" in t or re.search(r"[₩$€£]", t)):
-                        price_text = t; break
+                for i in range(min(n, 40)):
+                    e = els.nth(i)
+                    t = (await e.inner_text()).strip()
+                    if not (re.search(r"\d", t) and ("원" in t or re.search(r"[₩$€£]", t))):
+                        continue
+                    deco = await e.evaluate("el => getComputedStyle(el).textDecorationLine || ''")
+                    if "line-through" in (deco or ""):
+                        continue
+                    cls = (await e.get_attribute("class") or "").lower()
+                    if any(k in cls for k in ["strike","original","before","wasprice"]):
+                        continue
+                    if any(k in t for k in ["할인", "적용됨", "쿠폰", "리워드", "캐시백", "%", "즉시 할인"]):
+                        continue
+                    price_text = t; break
                 if price_text: break
-            except: pass
+            except:
+                pass
 
-    # 2) JSON(LD/Next.js) 파싱 백업
+    # 4) JSON 백업
     price_from = None
     if not price_text:
         v, c, source = await extract_price_json(page)
@@ -309,10 +414,15 @@ async def scrape_once(ctx, region, device, url: str):
 # -------------------------
 async def run_once(serial: bool = False):
     if not AGODA_URL: raise RuntimeError("AGODA_URL(.env)이 비어있어요.")
-    combos = [{"region":"KR","device":"pc"},{"region":"KR","device":"mobile"},{"region":"US","device":"pc"},{"region":"US","device":"mobile"}]
+    combos = [
+        {"region":"KR","device":"pc"},
+        {"region":"KR","device":"mobile"},
+        {"region":"US","device":"pc"},
+        {"region":"US","device":"mobile"},
+    ]
     results = []
     async with async_playwright() as pw:
-        sem = asyncio.Semaphore(2)  # 동시 2개로 안정성 확보
+        sem = asyncio.Semaphore(2)
         async def worker(c):
             async with sem:
                 try:
@@ -327,7 +437,6 @@ async def run_once(serial: bool = False):
                     return e
 
         if serial:
-            # 직렬(문제 있을 때 진단용)
             for c in combos:
                 await worker(c)
         else:
@@ -338,17 +447,26 @@ async def run_once(serial: bool = False):
 
     if results:
         df = pd.DataFrame(results)
-        if CSV_PATH.exists(): pd.concat([pd.read_csv(CSV_PATH), df], ignore_index=True).to_csv(CSV_PATH, index=False)
-        else: df.to_csv(CSV_PATH, index=False)
+        if CSV_PATH.exists():
+            pd.concat([pd.read_csv(CSV_PATH), df], ignore_index=True).to_csv(CSV_PATH, index=False)
+        else:
+            df.to_csv(CSV_PATH, index=False)
         print(f"Saved -> {CSV_PATH.resolve()}")
     else:
         print("[WARN] 저장할 결과가 없습니다.")
 
+"""async def scheduler(serial: bool = False):
+    await run_once(serial=serial)
+    while True:
+        wait_s = seconds_until_next_1h()
+        print(f"[Scheduler] 다음 실행까지 {wait_s}초 대기")
+        await asyncio.sleep(wait_s)
+        await run_once(serial=serial)"""
 async def scheduler(serial: bool = False):
     await run_once(serial=serial)
     while True:
-        wait_s = seconds_until_next_10m()
-        print(f"[Scheduler] 다음 실행까지 {wait_s}초 대기 (매 10분: :00/:10/:20/:30/:40/:50).")
+        wait_s = seconds_until_next_30m()
+        print(f"[Scheduler] 다음 실행까지 {wait_s}초 대기 (매 30분: :00 / :30).")
         await asyncio.sleep(wait_s)
         await run_once(serial=serial)
 
