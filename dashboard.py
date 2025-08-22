@@ -19,7 +19,7 @@ import streamlit as st
 import altair as alt
 
 # --------------- 페이지 설정 ---------------
-st.set_page_config(page_title="Real-Time Visualization", page_icon="✅", layout="wide")
+st.set_page_config(page_title="Real-Time Visualization", layout="wide")
 
 # --------------- 기본 경로/패턴 ---------------
 DEFAULT_DATA_DIR = Path("./outputs")
@@ -240,7 +240,7 @@ def sidebar_controls(df: pd.DataFrame) -> Dict[str, Any]:
 
     # 환경 선택
     envs_all = sorted(view.loc[(view["site"] == site) & (view["item"] == item), "env"].dropna().unique().tolist())
-    envs_sel = st.sidebar.multiselect("환경 라인 (KR-PC, US-MOBILE 등)", options=envs_all, default=envs_all)
+    envs_sel = st.sidebar.multiselect("Env", options=envs_all, default=envs_all)
 
     # 리샘플 간격
     freq = st.sidebar.selectbox("리샘플 간격", options=["5min","15min","30min","60min","1D"], index=2)
@@ -265,10 +265,8 @@ def apply_filters(view: pd.DataFrame, cfg: Dict[str, Any]) -> pd.DataFrame:
 
 # --------------- 차트/KPI ---------------
 def kpi_row(df: pd.DataFrame):
-    # 표시 소수 자리수
     DEC_PLACES = 2
-    def fmt(x):
-        return f"{x:,.{DEC_PLACES}f}"
+    def fmt(x): return f"{x:,.{DEC_PLACES}f}"
 
     c1, c2, c3, c4, c5 = st.columns(5)
 
@@ -280,19 +278,32 @@ def kpi_row(df: pd.DataFrame):
         c5.metric("최고 가격", "-")
         return
 
-    use = df.dropna(subset=["price"]).sort_values("ts_min")
+    use = df.dropna(subset=["price"]).copy()
+    use = use.sort_values("ts_min")
+
+    # --- 통화 결정: currency 있으면 사용, 없으면 사이트로 추정(amazon=USD, 그 외=KRW)
+    if "currency" in use.columns and use["currency"].notna().any():
+        curr_series = use["currency"].astype(str).str.upper()
+    else:
+        curr_series = pd.Series(
+            np.where(use["site"].str.lower().eq("amazon"), "USD", "KRW"),
+            index=use.index,
+        )
+    curr_list = sorted(pd.Series(curr_series).dropna().unique().tolist())
+    unit_str = " / ".join(curr_list) if curr_list else ""
+
+    # --- 값 계산
     last = use["price"].iloc[-1]
     avg  = use["price"].mean()
-    min_idx = use["price"].idxmin()
-    max_idx = use["price"].idxmax()
-    p_min = use.loc[min_idx, "price"]
-    p_max = use.loc[max_idx, "price"]
+    min_idx = use["price"].idxmin(); p_min = use.loc[min_idx, "price"]
+    max_idx = use["price"].idxmax(); p_max = use.loc[max_idx, "price"]
 
+    # --- KPI 출력 (라벨에 단위 표기)
     c1.metric("데이터 수", f"{len(use):,}")
-    c2.metric("최신 가격", fmt(last))
-    c3.metric("평균 가격", fmt(avg))
-    c4.metric("최저 가격", fmt(p_min))
-    c5.metric("최고 가격", fmt(p_max))
+    c2.metric(f"최신 가격 ({unit_str})", fmt(last))
+    c3.metric(f"평균 가격 ({unit_str})", fmt(avg))
+    c4.metric(f"최저 가격 ({unit_str})", fmt(p_min))
+    c5.metric(f"최고 가격 ({unit_str})", fmt(p_max))
 
     st.caption(
         f"최저 시각: {pd.to_datetime(use.loc[min_idx, 'ts_min']):%Y-%m-%d %H:%M} · "
@@ -346,7 +357,14 @@ def main():
         show = data.copy()
         if "ts_min" in show.columns:
             show["ts_min"] = pd.to_datetime(show["ts_min"], errors="coerce").dt.strftime("%Y-%m-%d %H:%M:%S")
-        st.dataframe(show[cols] if cols else show, use_container_width=True)
+        st.dataframe(show[cols] if cols else show, use_container_width=True, height=1000)
+        csv = show.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            label="CSV 다운로드",
+            data=csv,
+            file_name="raw_data.csv",
+            mime="text/csv"
+        )
 
     if st.button("새로고침"): st.rerun()
 
